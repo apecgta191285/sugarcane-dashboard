@@ -2,7 +2,7 @@
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/shared/lib/supabase/server";
-import { getGeminiModel } from "@/shared/lib/gemini/client";
+import { getAIClient } from "@/shared/lib/ai/client";
 
 /**
  * Health Check Result for a single service
@@ -22,7 +22,7 @@ export interface HealthCheckResult {
     services: {
         database: ServiceHealth;
         storage: ServiceHealth;
-        gemini: ServiceHealth;
+        ai: ServiceHealth;
     };
     allHealthy: boolean;
 }
@@ -143,38 +143,38 @@ async function checkStorage(): Promise<ServiceHealth> {
 }
 
 /**
- * Check Gemini AI client instantiation
+ * Check OpenRouter AI client instantiation
  */
-async function checkGemini(): Promise<ServiceHealth> {
+async function checkAI(): Promise<ServiceHealth> {
     const startTime = Date.now();
 
     try {
-        // Attempt to get the model - this validates API key and client setup
-        const model = getGeminiModel();
+        // Attempt to get the client - this validates API key
+        const client = getAIClient();
 
         const latencyMs = Date.now() - startTime;
 
-        // Verify model is instantiated properly
-        if (!model) {
+        // Verify client is instantiated properly
+        if (!client) {
             return {
-                name: "Gemini AI",
+                name: "OpenRouter AI",
                 status: "error",
-                message: "Failed to instantiate Gemini model",
+                message: "Failed to instantiate OpenRouter client (API key missing)",
                 latencyMs,
             };
         }
 
         return {
-            name: "Gemini AI",
+            name: "OpenRouter AI",
             status: "ok",
-            message: `Model 'gemini-3-flash' instantiated successfully`,
+            message: `Client instantiated (using Gemini 2.0 Flash via OpenRouter)`,
             latencyMs,
         };
     } catch (err) {
         return {
-            name: "Gemini AI",
+            name: "OpenRouter AI",
             status: "error",
-            message: `Gemini error: ${err instanceof Error ? err.message : String(err)}`,
+            message: `AI error: ${err instanceof Error ? err.message : String(err)}`,
             latencyMs: Date.now() - startTime,
         };
     }
@@ -185,23 +185,23 @@ async function checkGemini(): Promise<ServiceHealth> {
  */
 export async function runHealthCheck(): Promise<HealthCheckResult> {
     // Run all checks in parallel for faster response
-    const [database, storage, gemini] = await Promise.all([
+    const [database, storage, ai] = await Promise.all([
         checkDatabase(),
         checkStorage(),
-        checkGemini(),
+        checkAI(),
     ]);
 
     const allHealthy =
         database.status === "ok" &&
         storage.status === "ok" &&
-        gemini.status === "ok";
+        ai.status === "ok";
 
     return {
         timestamp: new Date().toISOString(),
         services: {
             database,
             storage,
-            gemini,
+            ai,
         },
         allHealthy,
     };

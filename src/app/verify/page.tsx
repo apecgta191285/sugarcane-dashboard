@@ -13,8 +13,8 @@ function StatusCard({ service, icon: Icon }: { service: ServiceHealth; icon: Rea
     return (
         <div
             className={`rounded-lg border-2 p-6 transition-all ${isOk
-                    ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-                    : "border-red-500 bg-red-50 dark:bg-red-950/20"
+                ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                : "border-red-500 bg-red-50 dark:bg-red-950/20"
                 }`}
         >
             <div className="flex items-center gap-3 mb-4">
@@ -121,8 +121,8 @@ export default function VerifyPage() {
                         {/* Overall Status */}
                         <div
                             className={`mb-8 p-4 rounded-lg text-center font-semibold ${result.allHealthy
-                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                    : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
                                 }`}
                         >
                             {result.allHealthy
@@ -134,7 +134,7 @@ export default function VerifyPage() {
                         <div className="grid gap-4">
                             <StatusCard service={result.services.database} icon={Database} />
                             <StatusCard service={result.services.storage} icon={HardDrive} />
-                            <StatusCard service={result.services.gemini} icon={Sparkles} />
+                            <StatusCard service={result.services.ai} icon={Sparkles} />
                         </div>
 
                         {/* Timestamp */}
@@ -157,7 +157,7 @@ export default function VerifyPage() {
                             <strong>Storage Bucket Missing:</strong> Create a bucket named <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">receipts</code> in Supabase Storage.
                         </li>
                         <li>
-                            <strong>Gemini Error:</strong> Verify <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">GOOGLE_GEMINI_API_KEY</code> is set in <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">.env.local</code>.
+                            <strong>AI Error:</strong> Verify <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">OPENROUTER_API_KEY</code> is set in <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">.env.local</code>.
                         </li>
                     </ul>
                 </div>

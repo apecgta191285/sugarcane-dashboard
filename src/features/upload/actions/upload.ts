@@ -1,21 +1,9 @@
 "use server";
 
 import { createClient } from "@/shared/lib/supabase/server";
-import { getOCRModel, imageToGenerativePart } from "@/shared/lib/gemini/client";
+import { analyzeReceipt, type OCRExtractedData } from "@/shared/lib/ai/client";
 import { revalidatePath } from "next/cache";
 import { uploadFileSchema } from "../types/upload.types";
-
-/**
- * OCR Extracted Data Type
- */
-interface OCRExtractedData {
-    supplier_name?: string;
-    date?: string;
-    total_amount?: number;
-    cane_type?: string;
-    weight_net?: number;
-    price_per_ton?: number;
-}
 
 /**
  * Upload Result
@@ -25,32 +13,13 @@ type ActionResult<T = void> =
     | { success: false; error: string };
 
 /**
- * OCR Prompt for Sugarcane Receipt Extraction
- */
-const OCR_PROMPT = `Analyze this sugarcane receipt image. Extract the following fields strictly as JSON.
-If a field cannot be found or is unclear, set it to null.
-
-Required JSON format:
-{
-    "supplier_name": string | null,
-    "date": string | null (ISO format YYYY-MM-DD if possible),
-    "total_amount": number | null,
-    "cane_type": string | null,
-    "weight_net": number | null (in kg),
-    "price_per_ton": number | null
-}
-
-Be precise with numbers. Convert Thai date formats to ISO if possible.
-Return ONLY the JSON object, no additional text.`;
-
-/**
- * Upload Receipt Image with AI-Powered OCR
+ * Upload Receipt Image with AI-Powered OCR (via OpenRouter)
  * 
  * Pipeline:
  * 1. Auth Check
  * 2. Validate Input
  * 3. Convert Image to Base64
- * 4. Process with Gemini OCR
+ * 4. Process with OpenRouter OCR (Gemini 2.0 Flash)
  * 5. Upload to Supabase Storage
  * 6. Insert Record with OCR Data
  * 7. Revalidate Cache
@@ -101,39 +70,34 @@ export async function uploadReceipt(
         }
 
         // ===========================================
-        // [3] CONVERT TO BASE64 - For Gemini Vision
+        // [3] CONVERT TO BASE64 - For OpenRouter Vision
         // ===========================================
         const fileBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(fileBuffer);
-        const imagePart = imageToGenerativePart(buffer, file.type);
+        const base64Image = buffer.toString("base64");
 
         // ===========================================
-        // [4] AI OCR - Process with Gemini
+        // [4] AI OCR - Process with OpenRouter (Graceful Degradation)
         // ===========================================
         let ocrData: OCRExtractedData | null = null;
         let ocrError: string | null = null;
         let ocrConfidence: number | null = null;
 
-        try {
-            const model = getOCRModel();
-            const result = await model.generateContent([OCR_PROMPT, imagePart]);
-            const response = result.response;
-            const text = response.text();
+        const ocrResult = await analyzeReceipt(base64Image, file.type);
 
-            // Parse JSON response
-            const parsed = JSON.parse(text) as OCRExtractedData;
-            ocrData = parsed;
+        if (ocrResult.error) {
+            console.warn("⚠️ OCR processing failed (non-fatal):", ocrResult.error);
+            ocrError = ocrResult.error;
+            // Continue with upload - status will remain 'pending' for manual review
+        } else if (ocrResult.data) {
+            ocrData = ocrResult.data;
 
             // Calculate confidence score based on how many fields were extracted
             const fields = ['supplier_name', 'date', 'total_amount', 'cane_type', 'weight_net', 'price_per_ton'];
-            const filledFields = fields.filter(f => parsed[f as keyof OCRExtractedData] !== null && parsed[f as keyof OCRExtractedData] !== undefined);
+            const filledFields = fields.filter(f => ocrData![f as keyof OCRExtractedData] !== null && ocrData![f as keyof OCRExtractedData] !== undefined);
             ocrConfidence = Math.round((filledFields.length / fields.length) * 100);
 
-            console.log("OCR extraction successful:", { filledFields: filledFields.length, confidence: ocrConfidence });
-        } catch (err) {
-            // OCR failed but we don't fail the upload
-            ocrError = err instanceof Error ? err.message : "OCR processing failed";
-            console.error("OCR error (non-fatal):", ocrError);
+            console.log("✅ OCR extraction successful:", { filledFields: filledFields.length, confidence: ocrConfidence });
         }
 
         // ===========================================
